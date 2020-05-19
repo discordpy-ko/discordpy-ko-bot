@@ -1,0 +1,4 @@
+discord.py
+GitPython
+PyGithub
+beautifulsoup4
