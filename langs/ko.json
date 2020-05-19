@@ -1,0 +1,7 @@
+{
+    "loaded_cog": "`{0}`을(를) 로드했어요!",
+    "unloaded_cog": "`{0}`을(를) 언로드했어요!",
+    "reloaded_cog": "`{0}`을(를) 재로드했어요!",
+    "updated_cogs": "`{0}` 업데이트 성공!",
+    "ping": ":ping_pong: 퐁! ({0}ms)"
+}
