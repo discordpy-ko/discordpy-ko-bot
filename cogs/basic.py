@@ -17,6 +17,7 @@ class Basic(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
+        await self.bot.change_presence(activity=discord.Game(".!도움"))
         print("Bot Ready!")
 
     @commands.command(aliases=["핑"])
@@ -34,7 +35,7 @@ class Basic(commands.Cog):
 
     @commands.command(aliases=["도움"])
     async def help(self, ctx):
-        embed = discord.Embed(title='discordpy-ko', description='Alpha | 프리픽스: `.!`', colour=discord.Color.gold())
+        embed = discord.Embed(title='discordpy-ko', description='프리픽스: `.!`', colour=discord.Color.gold())
         embed.add_field(name="문서검색 [키워드]", value="해당 키워드로 문서 검색을 합니다.", inline=False)
         embed.add_field(name='DOCS', value='문서 관련 명령어를 출력합니다. 해당 명령어는 특정 서버에서 특정 유저만 사용 가능합니다.', inline=False)
         embed.add_field(name='PR', value='Pull Request 관련 명령어를 출력합니다. 해당 명령어는 특정 서버에서 특정 유저만 사용 가능합니다.', inline=False)
@@ -55,7 +56,21 @@ class Basic(commands.Cog):
             if search in str(link):
                 result1.append(link.get('href'))
         embed.set_footer(text=ctx.author, icon_url=ctx.author.avatar_url)
-        await pager.auto_div_embed(self.bot, ctx, embed, result1)
+        count = 1
+        embed_list = []
+        page_embed = embed.copy()
+        for_res = result1.copy()
+        for x in for_res:
+            if count != 1 and count % 5 == 1:
+                embed_list.append(page_embed)
+                page_embed = embed.copy()
+            base_link = "https://discordpy.cpbu.xyz/"
+            link = base_link + x
+            page_embed.add_field(name=str(count), value=f"[`{x}`]({link})", inline=False)
+            result1.remove(x)
+            count += 1
+        embed_list.append(page_embed)
+        await pager.start_page(self.bot, ctx, embed_list, embed=True)
 
 
 def setup(bot):
