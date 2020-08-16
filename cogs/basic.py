@@ -58,8 +58,8 @@ class Basic(commands.Cog):
         docs_url = "https://discordpy.cpbu.xyz/genindex.html"
         base_url = "https://discordpy.cpbu.xyz/search.html?q="
         base_link = "https://discordpy.cpbu.xyz/"
-        if search.startswith("-neo"):
-            search.lstrip("-neo")
+        if search.startswith("-neo "):
+            search = search.replace("-neo ", "")
             docs_url = "https://discordpy.cpbu.xyz/neo-docs/genindex.html"
             base_url = "https://discordpy.cpbu.xyz/neo-docs/search.html?q="
             base_link = "https://discordpy.cpbu.xyz/neo-docs/"
