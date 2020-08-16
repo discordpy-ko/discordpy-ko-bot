@@ -1,8 +1,15 @@
 import shutil
 import os
+import asyncio
+
+loop = asyncio.get_event_loop()
 
 
 async def build_dpdocs():
+    return await loop.run_in_executor(None, _build_dpdocs)
+
+
+def _build_dpdocs():
     shutil.rmtree("discord.py-master/docs/locale")
     shutil.copytree("loc/locale", "discord.py-master/docs/locale")
 

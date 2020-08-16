@@ -31,7 +31,11 @@ def token():
         sys.exit()
 
 
-bot = commands.Bot(command_prefix=str(prefix))
+async def get_prefix(bot, message):
+    return commands.when_mentioned_or('.!')(bot, message)
+
+
+bot = commands.Bot(command_prefix=get_prefix)
 # 기본 help 명령어를 지우는 코드
 # Removes help command (integrated in discord.py)
 bot.remove_command('help')

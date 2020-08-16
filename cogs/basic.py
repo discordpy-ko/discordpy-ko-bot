@@ -53,16 +53,23 @@ class Basic(commands.Cog):
         #embed.add_field(name="", value="", inline=False)
         await ctx.send(embed=embed)
 
-    @commands.command(name="문서검색", aliases=["검색", "문서"])
-    async def search(self, ctx, search: str):
+    @commands.command(name="문서검색", aliases=["검색", "문서", "rtfm", "ㄳ르", "문서좀읽으세요"])
+    async def search(self, ctx, *, search: str):
         docs_url = "https://discordpy.cpbu.xyz/genindex.html"
+        base_url = "https://discordpy.cpbu.xyz/search.html?q="
+        base_link = "https://discordpy.cpbu.xyz/"
+        if search.startswith("-neo"):
+            search.lstrip("-neo")
+            docs_url = "https://discordpy.cpbu.xyz/neo-docs/genindex.html"
+            base_url = "https://discordpy.cpbu.xyz/neo-docs/search.html?q="
+            base_link = "https://discordpy.cpbu.xyz/neo-docs/"
         async with aiohttp.ClientSession() as session:
             async with session.get(docs_url) as res:
                 text = await res.read()
         soup = BeautifulSoup(text, "html.parser")
         result1 = []
         embed = discord.Embed(title='discordpy-ko 문서 검색 결과', description=search,
-                              url="https://discordpy.cpbu.xyz/search.html?q=" + search, colour=discord.Color.gold())
+                              url=base_url + search, colour=discord.Color.gold())
         for link in soup.findAll('a'):
             if search in str(link):
                 result1.append(link.get('href'))
@@ -71,13 +78,15 @@ class Basic(commands.Cog):
         embed_list = []
         page_embed = embed.copy()
         for_res = result1.copy()
+        if len(result1) == 0:
+            return await ctx.send("검색 결과가 없습니다.")
         for x in for_res:
             if count != 1 and count % 5 == 1:
                 embed_list.append(page_embed)
                 page_embed = embed.copy()
-            base_link = "https://discordpy.cpbu.xyz/"
+
             link = base_link + x
-            page_embed.add_field(name=str(count), value=f"[`{x}`]({link})", inline=False)
+            page_embed.add_field(name=str(count), value=f"[`{x.split('#')[1]}`]({link})", inline=False)
             result1.remove(x)
             count += 1
         embed_list.append(page_embed)
