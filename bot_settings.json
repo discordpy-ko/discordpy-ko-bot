@@ -1,0 +1,11 @@
+{
+    "bot_name": "discordpy-ko",
+    "stable_token": "",
+    "canary_token": "",
+    "koreanbots": "",
+    "default_prefix": ".!",
+    "debug": false,
+    "whitelist": [288302173912170497],
+    "presence": [".!도움"],
+    "github_token": ""
+}

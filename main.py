@@ -1,97 +1,209 @@
-# 디스코드 봇 템플릿 by eunwoo1104#9600
-# discord bot template by eunwoo1104#9600
+"""
+
+discordpy-ko 봇 by discordpy-ko
+문서 업데이트와 문서 검색을 위한 봇입니다.
+해당 봇은 eunwoo1104의 봇 템플릿을 이용해 만들었습니다. ~~처음부터 만들기 귀찮아요~~
+
+---------------------------------------------------------------------------------
+
+discord.py 봇 탬플릿 by eunwoo1104 (Discord: eunwoo1104#9600)
+MIT 라이센스를 지키는 한 자유롭게 이용이 가능합니다.
+이 템플릿으로 봇을 제작하기 전에 타입 힌트와 클래스와 비동기 정도는 알고 시작하는 것을 추천합니다.
+봇을 제작할 때는 디코파이 문서를 참고하세요.
+discord.py 문서: https://discordpy.readthedocs.io/en/latest/index.html
+번역중인 문서: https://discordpy.cpbu.xyz/index.html
+
+코드에 문제가 있을 경우 자유롭게 Issue나 Pull Request를 넣어주세요.
+
+"""
+import asyncio
 import discord
-import sys
-import os
 import json
+import os
+import logging
+import websockets
+import light_koreanbots
 from discord.ext import commands
-from Modules import bot_lang
 
-with open('botsetup.json', 'r', encoding="UTF-8") as f:
-    bot_data = json.load(f) # loads bot setups
-
-prefix = bot_data["default_prefix"] # bot prefix | 봇 프리픽스
-stable_token = bot_data["stable_token"] # bot stable token | 봇 스테이블 토큰
-canary_token = bot_data["canary_token"] # bot canary token | 봇 카나리 토큰
-chosen_token = bot_data["chosen_token"] # chooses token | 토큰 선택
-bot_name = bot_data["bot_name"] # bot name | 봇 이름
-sys_lang = bot_data["sys_lang"] # language you want to use | 기본 언어
-owner_id = bot_data["owner_id"] # owner id | 소유자 id
+root_dir = os.getcwd()
 
 
-# 토큰 선택 코드
-# token chooser
-def token():
-    if chosen_token == "stable":
-        return stable_token
-    elif chosen_token == "canary":
-        return canary_token
-    else:
-        print(f"Token Error; Stopping bot.\nDetail: 'chosen_token' should be 'stable' or 'canary', but current setting is '{chosen_token}'")
-        sys.exit()
+def get_bot_settings() -> dict:
+    """
+    봇 설정 파일을 파이썬 dict로 리턴합니다.
+    """
+    with open(f'{root_dir}/bot_settings.json', 'r', encoding="UTF-8") as f:
+        return json.load(f)
+
+
+logger = logging.getLogger('discord')
+logging.basicConfig(level=logging.INFO)  # DEBUG/INFO/WARNING/ERROR/CRITICAL
+handler = logging.FileHandler(filename=f'{get_bot_settings()["bot_name"]}.log', encoding='utf-8', mode='w')
+handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+logger.addHandler(handler)
+
+token = "stable_token"
+
+if get_bot_settings()["debug"]:
+    """
+    만약에 봇 설정 파일에 debug 항목이 true로 되있다면 stable_token이 아닌 canary_token이 불러와집니다.
+    이를 원하지 않는다면 debug를 false로 해주세요.
+    """
+    token = "canary_token"
+    print("Bot running in debug mode.")
 
 
 async def get_prefix(bot, message):
-    return commands.when_mentioned_or('.!')(bot, message)
+    """
+    프리픽스를 리턴해주는 코루틴입니다.
+    """
+    return commands.when_mentioned_or(*[get_bot_settings()["default_prefix"]])(bot, message)
 
 
-bot = commands.Bot(command_prefix=get_prefix)
-# 기본 help 명령어를 지우는 코드
-# Removes help command (integrated in discord.py)
-bot.remove_command('help')
+loop = asyncio.get_event_loop()
+bot = commands.Bot(command_prefix=get_prefix, help_command=None)
+light_koreanbots.LKBClient(bot=bot, token=get_bot_settings()["koreanbots"])
 
 
-# 봇 주인 확인 코드
-# check owner
-def is_owner(ctx):
-    return ctx.message.author.id == int(owner_id)
+async def is_whitelisted(ctx):
+    """
+    Cog 관련 명령어를 봇 소유자나 화이트리스트에 등록된 유저만 사용하게 만드는 코드입니다.
+    """
+    return ctx.author.id in get_bot_settings()["whitelist"]
 
 
-# 로드
-# loads cog
-@bot.command()
-@commands.check(is_owner)
-async def load(ctx, extension):
-    bot.load_extension(f'cogs.{extension}')
-    text = await bot_lang.load_text(sys_lang, "loaded_cog")
-    await ctx.send(str(text).format(str(extension)))
+async def change_presence():
+    """
+    봇의 상태메시지를 계속 변경해주는 코드입니다.
+    바뀌는 시간은 sleep_time 변수 변경으로 가능합니다.
+    추천되는 설정은 15초입니다.
+    """
+    sleep_time = 15
+    await bot.wait_until_ready()
+    while True:
+        if len(get_bot_settings()["presence"]) == 1:
+            await bot.change_presence(activity=discord.Game(get_bot_settings()["presence"][0]))
+            await asyncio.sleep(sleep_time)
+            break
+        for x in get_bot_settings()["presence"]:
+            try:
+                await bot.change_presence(activity=discord.Game(x))
+                await asyncio.sleep(sleep_time)
+            except (asyncio.streams.IncompleteReadError, discord.ConnectionClosed, websockets.exceptions.ConnectionClosedError):
+                logger.warning(f"Failed changing presence. Skipping this string: {x}")
+                await asyncio.sleep(sleep_time)
+            except Exception as ex:
+                logger.error(f"Unexpected error occurred during changing presence: {ex.__str__()}")
+                await asyncio.sleep(sleep_time)
 
 
-# 언로드
-# unloads cog
-@bot.command()
-@commands.check(is_owner)
-async def unload(ctx, extension):
-    bot.unload_extension(f'cogs.{extension}')
-    text = await bot_lang.load_text(sys_lang, "unloaded_cog")
-    await ctx.send(str(text).format(str(extension)))
+@bot.event
+async def on_ready():
+    """
+    봇이 실행될 때 작동하는 코드입니다.
+    **주의!**: 이 코드는 한번만 실행되는 것이 아니라, 연결이 끊어진 이후에 다시 실행될 수 있습니다.
+    (discord.py 문서 https://discordpy.cpbu.xyz/api.html#discord.on_ready 참고)
+    """
+    logger.info("Bot online.")
 
 
-# 리로드
-# reloads cog
-@bot.command()
-@commands.check(is_owner)
-async def reload(ctx, extension):
-    bot.reload_extension(f'cogs.{extension}')
-    text = await bot_lang.load_text(sys_lang, "reloaded_cog")
-    await ctx.send(str(text).format(str(extension)))
+@bot.command(name="cog", aliases=["cogs", "코그"])
+@commands.check(is_whitelisted)
+async def _cog_panel(ctx):
+    """
+    Cog를 로드하거나 언로드할 수 있는 명령어입니다.
+    이모지 반응으로 컨트룔이 가능합니다.
+    """
+    load = "⏺"
+    unload = "⏏"
+    reload = "🔄"
+    up = "⬆"
+    down = "⬇"
+    stop = "⏹"
+    emoji_list = [load, unload, reload, up, down, stop]
+    msg = await ctx.send("잠시만 기다려주세요...")
+    for x in emoji_list:
+        await msg.add_reaction(x)
+    cog_list = [c.replace(".py", "") for c in os.listdir("./cogs") if c.endswith(".py")]
+    cogs_dict = {}
+    base_embed = discord.Embed(title=f"{get_bot_settings()['bot_name']} Cog 관리 패널", description=f"`cogs` 폴더의 Cog 개수: {len(cog_list)}개", color=discord.Color.from_rgb(225, 225, 225))
+    for x in cog_list:
+        if x in [x.lower() for x in bot.cogs.keys()]:
+            cogs_dict[x] = True
+        else:
+            cogs_dict[x] = False
+    cogs_keys = [x for x in cogs_dict.keys()]
+    selected = cogs_keys[0]
+    selected_num = 0
+
+    def check(reaction, user):
+        return user == ctx.author and str(reaction) in emoji_list and reaction.message.id == msg.id
+
+    while True:
+        tgt_embed = base_embed.copy()
+        for k, v in cogs_dict.items():
+            if k == selected:
+                k = "▶" + k
+            tgt_embed.add_field(name=k, value=f"상태: {'로드됨' if v else '언로드됨'}", inline=False)
+        await msg.edit(content=None, embed=tgt_embed)
+        try:
+            reaction = (await bot.wait_for("reaction_add", check=check, timeout=60))[0]
+        except asyncio.TimeoutError:
+            try:
+                await msg.clear_reactions()
+            except discord.Forbidden:
+                [await msg.remove_reaction(x) for x in emoji_list]
+            await msg.edit(content="Cog 관리 패널이 닫혔습니다.", embed=None)
+            break
+        if str(reaction) == down:
+            if selected_num+1 == len(cogs_keys):
+                wd = await ctx.send("이미 마지막 Cog 입니다.")
+                await wd.delete(delay=3)
+            else:
+                selected_num += 1
+                selected = cogs_keys[selected_num]
+        elif str(reaction) == up:
+            if selected_num == 0:
+                wd = await ctx.send("이미 첫번째 Cog 입니다.")
+                await wd.delete(delay=3)
+            else:
+                selected_num -= 1
+                selected = cogs_keys[selected_num]
+        elif str(reaction) == reload:
+            if not cogs_dict[selected]:
+                wd = await ctx.send("먼저 Cog를 로드해주세요.")
+                await wd.delete(delay=3)
+            else:
+                bot.reload_extension("cogs." + selected)
+        elif str(reaction) == unload:
+            if not cogs_dict[selected]:
+                wd = await ctx.send("이미 Cog가 언로드되있습니다.")
+                await wd.delete(delay=3)
+            else:
+                bot.unload_extension("cogs." + selected)
+                cogs_dict[selected] = False
+        elif str(reaction) == load:
+            if cogs_dict[selected]:
+                wd = await ctx.send("이미 Cog가 로드되있습니다.")
+                await wd.delete(delay=3)
+            else:
+                bot.load_extension("cogs." + selected)
+                cogs_dict[selected] = True
+        elif str(reaction) == stop:
+            await msg.clear_reactions()
+            await msg.edit(content="Cog 관리 패널이 닫혔습니다.", embed=None)
+            break
+        try:
+            await msg.remove_reaction(reaction, ctx.author)
+        except discord.Forbidden:
+            pass
 
 
-# cogs 업데이트
-# updates cogs
-@bot.command()
-@commands.check(is_owner)
-async def update(ctx):
-    for ext_name in os.listdir("./cogs"):
-        if ext_name.endswith('.py'):
-            bot.reload_extension(f'cogs.{ext_name[:-3]}')
-            text = await bot_lang.load_text(sys_lang, "updated_cogs")
-            await ctx.send(str(text).format(str(ext_name[:-3])))
+# Cog를 불러오는 스크립트
+[bot.load_extension(f"cogs.{x.replace('.py', '')}") for x in os.listdir("./cogs") if x.endswith('.py')]
 
+# 봇 상태 메시지를 변경하는 코드 준비
+loop.create_task(change_presence())
 
-# cog를 불러오는 스크립트
-for filename in os.listdir("./cogs"):
-    if filename.endswith('.py'):
-        bot.load_extension(f'cogs.{filename[:-3]}')
-
-bot.run(token())
+# 봇 실행
+bot.run(get_bot_settings()[token])

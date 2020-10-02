@@ -1,7 +1,0 @@
-{
-    "loaded_cog": "Loaded `{0}`!",
-    "unloaded_cog": "Unloaded `{0}`!",
-    "reloaded_cog": "Reloaded `{0}`!",
-    "updated_cogs": "Updated `{0}`!",
-    "ping": ":ping_pong: Pong! ({0}ms)"
-}

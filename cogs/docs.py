@@ -1,53 +1,114 @@
 import discord
+import aiohttp
 import asyncio
-import sys
-from discord.ext import commands
-from github import Github
-from git import Repo
-import shutil
+import github
 import json
-import os
+from bs4 import BeautifulSoup
+from discord.ext import commands
+from utils import page
+from utils import build
 
-sys.path.append("..")
-from Modules import async_github as agh
-from Modules import async_sphinx_builder as asb
+special_keyword = {
+    "python": "https://docs.python.org/ko/3/",
+    "coroutine": "https://docs.python.org/ko/3/library/asyncio-task.html#coroutine",
+    "faq": ["https://discordpy.cpbu.xyz/faq.html", "https://discordpy.cpbu.xyz/neo-docs/faq.html"]
+}
 
-with open('botsetup.json', 'r', encoding="UTF-8") as f:
-    bot_data = json.load(f)  # loads bot setups
+aliases = {
+    "파이썬": "python",
+    "py": "python",
+    "코루틴": "coroutine",
+    "coro": "coroutine"
+}
 
-github_token = bot_data["github_token"]
-org_name = bot_data["org_name"]
-loc_repository = bot_data["loc_repository"]
-web_repository = bot_data["web_repository"]
+loop = asyncio.get_event_loop()
 
 
-class KoDocs(commands.Cog):
-
-    def __init__(self, bot):
+class DOCS(commands.Cog):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
-        print(f'Loaded {__name__}!')
+        self.building = False
 
-    async def cog_check(self, ctx):
-        return ctx.author in ctx.guild.get_role(704236010736713858).members and ctx.guild.id == 704227416951881790
+    @commands.command(name="문서검색",
+                      description="discord.py 문서에서 키워드로 검색을 합니다.",
+                      usage="`.!문서검색 [키워드]`",
+                      aliases=["검색", "문서", "rtfm", "ㄳ르", "문서좀읽으세요"])
+    async def search_docs(self, ctx: commands.Context, *, keyword: str = None):
+        if keyword is None:
+            embed = discord.Embed(title="discord.py 번역 문서 링크",
+                                  description="[1.5.0a 문서](https://discordpy.cpbu.xyz/)\n"
+                                              "[neo 문서](https://discordpy.cpbu.xyz/neo-docs/)",
+                                  color=discord.Color.gold())
+            return await ctx.send(embed=embed)
+        docs_url = "https://discordpy.cpbu.xyz/genindex.html"
+        base_url = "https://discordpy.cpbu.xyz/search.html?q="
+        base_link = "https://discordpy.cpbu.xyz/"
+        num = 0
+        if keyword.startswith("-neo "):
+            keyword = keyword.replace("-neo ", "")
+            docs_url = "https://discordpy.cpbu.xyz/neo-docs/genindex.html"
+            base_url = "https://discordpy.cpbu.xyz/neo-docs/search.html?q="
+            base_link = "https://discordpy.cpbu.xyz/neo-docs/"
+            num = 1
+        if keyword in special_keyword.keys():
+            return await ctx.send(special_keyword[keyword] if keyword != "faq" else special_keyword[keyword][num])
+        elif keyword in aliases.keys():
+            return await ctx.send(special_keyword[aliases[keyword]] if aliases[keyword] != "faq" else special_keyword[aliases[keyword]][num])
+        async with aiohttp.ClientSession() as session:
+            async with session.get(docs_url) as res:
+                text = await res.read()
+        soup = BeautifulSoup(text, "html.parser")
+        result1 = []
+        embed = discord.Embed(title='discordpy-ko 문서 검색 결과',
+                              description=keyword,
+                              url=base_url + keyword,
+                              colour=discord.Color.gold())
+        for link in soup.findAll('a'):
+            if keyword in str(link):
+                result1.append(link.get('href'))
+        embed.set_footer(text=ctx.author, icon_url=ctx.author.avatar_url)
+        count = 1
+        embed_list = []
+        page_embed = embed.copy()
+        for_res = result1.copy()
+        if len(result1) == 0:
+            return await ctx.send("검색 결과가 없습니다.")
+        for x in for_res:
+            if count != 1 and count % 5 == 1:
+                embed_list.append(page_embed)
+                page_embed = embed.copy()
+            link = base_link + x
+            page_embed.add_field(name=str(count), value=f"[`{x.split('#')[1]}`]({link})", inline=False)
+            result1.remove(x)
+            count += 1
+        embed_list.append(page_embed)
+        await page.start_page(self.bot, ctx, embed_list, embed=True)
 
-    @commands.group()
-    async def DOCS(self, ctx):
+    @commands.group(name="DOCS", description="문서 업데이트 관련 명령어입니다.", usage="`.!DOCS [서브커맨드]`", aliases=["docs"])
+    async def docs(self, ctx: commands.Context):
+        if 704236010736713858 not in [x.id for x in (await self.bot.get_guild(704227416951881790).fetch_member(ctx.author.id)).roles]:
+            return await ctx.send("권한이 없습니다. 해당 명령어는 `번디파문` 서버에서 `기여자` 역할을 갖고 있어야 사용이 가능합니다.")
         if ctx.invoked_subcommand is None:
-            embed = discord.Embed(title='DOCS 명령어', description='프리픽스: ".!"', colour=discord.Color.gold())
+            embed = discord.Embed(title='DOCS 명령어', colour=discord.Color.gold())
             embed.add_field(name='DOCS 업데이트', value='문서를 업데이트합니다. (소요시간: 1 ~ 2분)', inline=False)
             embed.add_field(name='DOCS 유저초대', value='관리자 전용', inline=False)
             await ctx.send(embed=embed)
 
-    @DOCS.command()
-    async def 유저초대(self, ctx, name: str):
+    @docs.command(name="유저초대")
+    async def invite_user(self, ctx: commands.Context, name: str):
         if not ctx.author.id == 288302173912170497:
             return
-        g = Github(github_token)
+
+        with open('bot_settings.json', 'r', encoding="UTF-8") as f:
+            bot_settings = json.load(f)
+        g = github.Github(bot_settings["github_token"])
         user_got = g.search_users(name + "in:login")[0]
-        embed = discord.Embed(title='GitHub 유저정보', description=user_got.login, colour=discord.Color.gold(), url=user_got.html_url)
+        embed = discord.Embed(title='GitHub 유저정보', description=user_got.login, colour=discord.Color.gold(),
+                              url=user_got.html_url)
         await ctx.send(embed=embed)
 
-        await ctx.send("정말로 이 유저를 초대할까요?")
+        msg = await ctx.send("정말로 이 유저를 초대할까요?")
+        [await msg.add_reaction(x) for x in ["⭕", "❌"]]
 
         def check(reaction, user):
             return user == ctx.author and str(reaction.emoji) == '⭕'
@@ -55,76 +116,23 @@ class KoDocs(commands.Cog):
         try:
             await self.bot.wait_for('reaction_add', timeout=60, check=check)
         except asyncio.TimeoutError:
-            await ctx.send("시간이 초과됬습니다.")
-            return
-        org = g.get_organization(org_name)
+            return await ctx.send("시간이 초과됬습니다.")
+        org = g.get_organization("discordpy-ko")
         org.invite_user(user=user_got)
         await ctx.send(f"`{user_got.login}`님을 초대했어요!")
 
-    @DOCS.command()
-    async def 업데이트(self, ctx, *, desc: str = None):
-        # 아직 비동기 사용 안함
-        # 나중에 이 코드 자체를 분리해버릴 예정
-        if desc is None:
-            desc = f"Updated by {ctx.author.display_name}"
-        await ctx.send("잠시만 기다려주세요...")
-        org = await agh.get_gh_org(org_name)
-        repo_github_loc = await agh.get_gh_org_repo(org, loc_repository)
-        repo_github_web = await agh.get_gh_org_repo(org, web_repository)
-
-        commit_message = desc
-
-        await agh.clone_gh_repo(repo_github_loc, "loc")
-        await agh.clone_gh_repo(repo_github_web, "docsweb")
-
-        await ctx.send("깃헙에서 최신 로케일 파일을 다운로드했어요! 이제 빌드를 시작할께요...")
-
-        await asb.build_dpdocs()
-
-        await ctx.send("빌드 완료! 이제 깃헙에 커밋할께요.")
-
-        await agh.push_local_repo("docsweb", commit_message)
-
-        await ctx.send("깃헙에 커밋 완료!")
-        await ctx.send(file=discord.File("./discord.py-master/docs/log_make.log"))
-        os.remove("./discord.py-master/docs/log_make.log")
-
-    # embed = discord.Embed(title='', description='', colour=discord.Color.red())
-    # embed.add_field(name='', value='', inline=False)
-
-    @commands.group()
-    async def PR(self, ctx):
-        if ctx.invoked_subcommand is None:
-            embed = discord.Embed(title='GitHub Pull Request 명령어', description='프리픽스: ".!"',
-                                  colour=discord.Color.gold())
-            embed.add_field(name='PR 정보 [PR번호]', value='해당 Pull Request 정보를 보여줍니다.', inline=False)
-            embed.add_field(name='PR Merge [PR번호]', value='해당 Pull Request를 master 브랜치로 Merge합니다', inline=False)
-            await ctx.send(embed=embed)
-
-    @PR.command()
-    async def 정보(self, ctx, num: int = None):
-        if num is None:
-            return
-        g = Github(github_token)
-        org = g.get_organization(org_name)
-        repo_github_loc = org.get_repo(loc_repository)
-        pr = repo_github_loc.get_pull(num)
-        embed = discord.Embed(title='Pull Request', description=f'#{num}', colour=discord.Color.gold(), url=pr.html_url)
-        embed.add_field(name='제목', value=pr.title, inline=False)
-        embed.add_field(name='PR 요청자 이름', value=pr.user.login)
-        embed.add_field(name='Merge 가능 여부', value=str(pr.mergeable), inline=False)
-
-        await ctx.send(embed=embed)
-
-    @PR.command()
-    async def Merge(self, ctx, num: int):
-        g = Github(github_token)
-        org = g.get_organization(org_name)
-        repo_github_loc = org.get_repo(loc_repository)
-        pr = repo_github_loc.get_pull(num)
-        pr.merge()
-        await ctx.send("해당 Pull Request를 Merge 했어요!")
+    @docs.command(name="업데이트", aliases=["update", "UPDATE"])
+    async def update(self, ctx: commands.Context, *, msg: str = None):
+        if self.building:
+            return await ctx.send("이미 빌드중입니다.")
+        self.building = True
+        await ctx.send("빌드를 시작할께요! 잠시만 기다려주세요...")
+        msg = f"Updated by {ctx.author.name}" if msg is None else msg
+        await loop.run_in_executor(None, build.build_docs, msg)
+        await ctx.send("빌드 완료!")
+        await ctx.send(file=discord.File("build_log.txt"))
+        self.building = False
 
 
 def setup(bot):
-    bot.add_cog(KoDocs(bot))
+    bot.add_cog(DOCS(bot))

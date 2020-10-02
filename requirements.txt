@@ -1,4 +1,6 @@
 discord.py
-GitPython
-PyGithub
+sphinx
+light-koreanbots
+pygithub
+gitpython
 beautifulsoup4
