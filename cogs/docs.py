@@ -27,6 +27,7 @@ loop = asyncio.get_event_loop()
 class DOCS(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.building = False
 
     @commands.command(name="문서검색",
                       description="discord.py 문서에서 키워드로 검색을 합니다.",
@@ -121,10 +122,16 @@ class DOCS(commands.Cog):
         await ctx.send(f"`{user_got.login}`님을 초대했어요!")
 
     @docs.command(name="업데이트", aliases=["update", "UPDATE"])
-    async def update(self, ctx: commands.Context, msg: str = None):
+    async def update(self, ctx: commands.Context, *, msg: str = None):
+        if self.building:
+            return await ctx.send("이미 빌드중입니다.")
+        self.building = True
+        await ctx.send("빌드를 시작할께요! 잠시만 기다려주세요...")
         msg = f"Updated by {ctx.author.name}" if msg is None else msg
         await loop.run_in_executor(None, build.build_docs, msg)
+        await ctx.send("빌드 완료!")
         await ctx.send(file=discord.File("build_log.txt"))
+        self.building = False
 
 
 def setup(bot):

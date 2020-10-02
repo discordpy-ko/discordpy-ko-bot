@@ -25,12 +25,14 @@ import websockets
 import light_koreanbots
 from discord.ext import commands
 
+root_dir = os.getcwd()
+
 
 def get_bot_settings() -> dict:
     """
     봇 설정 파일을 파이썬 dict로 리턴합니다.
     """
-    with open('bot_settings.json', 'r', encoding="UTF-8") as f:
+    with open(f'{root_dir}/bot_settings.json', 'r', encoding="UTF-8") as f:
         return json.load(f)
 
 
