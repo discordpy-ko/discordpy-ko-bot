@@ -11,10 +11,13 @@ def build_docs(msg: str):
     g = github.Github(bot_settings["github_token"])
     repo_list = ["discord.py-docs-kor-project", "discordpy-ko.github.io"]
     for x in repo_list:
-        _repo = g.get_organization("discordpy-ko").get_repo(x)
-        try:
-            git.Repo.clone_from(_repo.clone_url, x)
-        except: # 예외가 뭐 뜨는지 확인하기 귀찮아요
+        #_repo = g.get_organization("discordpy-ko").get_repo(x)
+        if x not in os.listdir("./"):
+            username = "안알려줌"
+            password = "안알려줌"
+            remote = f"https://{username}:{password}@github.com/discordpy-ko/{x}.git"
+            git.Repo.clone_from(remote, x)
+        else:
             local_repo = git.Repo(x).remotes.origin
             local_repo.pull()
     shutil.rmtree("discord.py-master/docs/locale")
@@ -35,10 +38,12 @@ def build_docs(msg: str):
         base_dir = "docsweb"
     for x in os.listdir(base_dir):
         if x == "_static":
-            [os.remove("discordpy-ko.github.io/_static/"+n) for n in os.listdir("discordpy-ko.github.io/_static") if n != "style.css"]
+            [os.remove("discordpy-ko.github.io/_static/"+n) for n in os.listdir("discordpy-ko.github.io/_static") if n not in ["style.css", "@eaDir"]]
             for y in os.listdir(base_dir+"/_static"):
-                if y != "style.css":
+                if y not in ["style.css", "@eaDir"]:
                     shutil.move(base_dir + "/_static/" + y, "discordpy-ko.github.io/_static/" + y)
+            continue
+        if x == "@eaDir":
             continue
         if x in os.listdir("discordpy-ko.github.io"):
             shutil.rmtree("discordpy-ko.github.io/" + x) if x == ".doctrees" or "." not in x else os.remove("discordpy-ko.github.io/" + x)
