@@ -58,8 +58,9 @@ async def get_prefix(bot, message):
     return commands.when_mentioned_or(*[get_bot_settings()["default_prefix"]])(bot, message)
 
 
+loop = asyncio.get_event_loop()
 bot = commands.Bot(command_prefix=get_prefix, help_command=None)
-light_koreanbots.LKBClient(bot=bot, token=get_bot_settings()["koreanbots"])
+# light_koreanbots.LKBClient(bot=bot, token=get_bot_settings()["koreanbots"])
 
 
 async def is_whitelisted(ctx):
@@ -200,7 +201,7 @@ async def _cog_panel(ctx):
 [bot.load_extension(f"cogs.{x.replace('.py', '')}") for x in os.listdir("./cogs") if x.endswith('.py')]
 
 # 봇 상태 메시지를 변경하는 코드 준비
-asyncio.create_task(change_presence())
+loop.create_task(change_presence())
 
 # 봇 실행
 bot.run(get_bot_settings()[token])

@@ -1,5 +1,8 @@
 import discord
 import aiohttp
+import asyncio
+import github
+import json
 from bs4 import BeautifulSoup
 from discord.ext import commands
 from utils import page
@@ -24,9 +27,15 @@ class DOCS(commands.Cog):
 
     @commands.command(name="문서검색",
                       description="discord.py 문서에서 키워드로 검색을 합니다.",
-                      usage=".!문서검색 [키워드]",
+                      usage="`.!문서검색 [키워드]`",
                       aliases=["검색", "문서", "rtfm", "ㄳ르", "문서좀읽으세요"])
-    async def search_docs(self, ctx: commands.Context, *, keyword: str):
+    async def search_docs(self, ctx: commands.Context, *, keyword: str = None):
+        if keyword is None:
+            embed = discord.Embed(title="discord.py 번역 문서 링크",
+                                  description="[1.5.0a 문서](https://discordpy.cpbu.xyz/)\n"
+                                              "[neo 문서](https://discordpy.cpbu.xyz/neo-docs/)",
+                                  color=discord.Color.gold())
+            return await ctx.send(embed=embed)
         docs_url = "https://discordpy.cpbu.xyz/genindex.html"
         base_url = "https://discordpy.cpbu.xyz/search.html?q="
         base_link = "https://discordpy.cpbu.xyz/"
@@ -38,9 +47,9 @@ class DOCS(commands.Cog):
             base_link = "https://discordpy.cpbu.xyz/neo-docs/"
             num = 1
         if keyword in special_keyword.keys():
-            return special_keyword[keyword] if keyword != "faq" else special_keyword[keyword][num]
+            return await ctx.send(special_keyword[keyword] if keyword != "faq" else special_keyword[keyword][num])
         elif keyword in aliases.keys():
-            return special_keyword[aliases[keyword]] if aliases[keyword] != "faq" else special_keyword[aliases[keyword]][num]
+            return await ctx.send(special_keyword[aliases[keyword]] if aliases[keyword] != "faq" else special_keyword[aliases[keyword]][num])
         async with aiohttp.ClientSession() as session:
             async with session.get(docs_url) as res:
                 text = await res.read()
@@ -70,6 +79,43 @@ class DOCS(commands.Cog):
             count += 1
         embed_list.append(page_embed)
         await page.start_page(self.bot, ctx, embed_list, embed=True)
+
+    @commands.group(name="DOCS", description="문서 업데이트 관련 명령어입니다.", usage="`.!DOCS [서브커맨드]`")
+    async def docs(self, ctx: commands.Context):
+        #if 704236010736713858 not in [x.id for x in (await self.bot.get_guild(704227416951881790).fetch_member(ctx.author.id)).roles]:
+        #    return await ctx.send("권한이 없습니다. 해당 명령어는 `번디파문` 서버에서 `기여자` 역할을 갖고 있어야 사용이 가능합니다.")
+        if ctx.invoked_subcommand is None:
+            embed = discord.Embed(title='DOCS 명령어', colour=discord.Color.gold())
+            embed.add_field(name='DOCS 업데이트', value='문서를 업데이트합니다. (소요시간: 1 ~ 2분)', inline=False)
+            embed.add_field(name='DOCS 유저초대', value='관리자 전용', inline=False)
+            await ctx.send(embed=embed)
+
+    @docs.command(name="유저초대")
+    async def invite_user(self, ctx: commands.Context, name: str):
+        if not ctx.author.id == 288302173912170497:
+            return
+
+        with open('bot_settings.json', 'r', encoding="UTF-8") as f:
+            bot_settings = json.load(f)
+        g = github.Github(bot_settings["github_token"])
+        user_got = g.search_users(name + "in:login")[0]
+        embed = discord.Embed(title='GitHub 유저정보', description=user_got.login, colour=discord.Color.gold(),
+                              url=user_got.html_url)
+        await ctx.send(embed=embed)
+
+        msg = await ctx.send("정말로 이 유저를 초대할까요?")
+        [await msg.add_reaction(x) for x in ["⭕", "❌"]]
+
+        def check(reaction, user):
+            return user == ctx.author and str(reaction.emoji) == '⭕'
+
+        try:
+            await self.bot.wait_for('reaction_add', timeout=60, check=check)
+        except asyncio.TimeoutError:
+            return await ctx.send("시간이 초과됬습니다.")
+        org = g.get_organization("discordpy-ko")
+        org.invite_user(user=user_got)
+        await ctx.send(f"`{user_got.login}`님을 초대했어요!")
 
 
 def setup(bot):
