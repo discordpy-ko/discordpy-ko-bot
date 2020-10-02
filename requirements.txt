@@ -1,0 +1,6 @@
+discord.py
+sphinx
+light-koreanbots
+pygithub
+gitpython
+beautifulsoup4

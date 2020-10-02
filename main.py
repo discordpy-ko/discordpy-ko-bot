@@ -60,7 +60,7 @@ async def get_prefix(bot, message):
 
 loop = asyncio.get_event_loop()
 bot = commands.Bot(command_prefix=get_prefix, help_command=None)
-# light_koreanbots.LKBClient(bot=bot, token=get_bot_settings()["koreanbots"])
+light_koreanbots.LKBClient(bot=bot, token=get_bot_settings()["koreanbots"])
 
 
 async def is_whitelisted(ctx):
@@ -82,7 +82,7 @@ async def change_presence():
         if len(get_bot_settings()["presence"]) == 1:
             await bot.change_presence(activity=discord.Game(get_bot_settings()["presence"][0]))
             await asyncio.sleep(sleep_time)
-            continue
+            break
         for x in get_bot_settings()["presence"]:
             try:
                 await bot.change_presence(activity=discord.Game(x))

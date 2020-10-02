@@ -6,6 +6,7 @@ import json
 from bs4 import BeautifulSoup
 from discord.ext import commands
 from utils import page
+from utils import build
 
 special_keyword = {
     "python": "https://docs.python.org/ko/3/",
@@ -19,6 +20,8 @@ aliases = {
     "코루틴": "coroutine",
     "coro": "coroutine"
 }
+
+loop = asyncio.get_event_loop()
 
 
 class DOCS(commands.Cog):
@@ -80,10 +83,10 @@ class DOCS(commands.Cog):
         embed_list.append(page_embed)
         await page.start_page(self.bot, ctx, embed_list, embed=True)
 
-    @commands.group(name="DOCS", description="문서 업데이트 관련 명령어입니다.", usage="`.!DOCS [서브커맨드]`")
+    @commands.group(name="DOCS", description="문서 업데이트 관련 명령어입니다.", usage="`.!DOCS [서브커맨드]`", aliases=["docs"])
     async def docs(self, ctx: commands.Context):
-        #if 704236010736713858 not in [x.id for x in (await self.bot.get_guild(704227416951881790).fetch_member(ctx.author.id)).roles]:
-        #    return await ctx.send("권한이 없습니다. 해당 명령어는 `번디파문` 서버에서 `기여자` 역할을 갖고 있어야 사용이 가능합니다.")
+        if 704236010736713858 not in [x.id for x in (await self.bot.get_guild(704227416951881790).fetch_member(ctx.author.id)).roles]:
+            return await ctx.send("권한이 없습니다. 해당 명령어는 `번디파문` 서버에서 `기여자` 역할을 갖고 있어야 사용이 가능합니다.")
         if ctx.invoked_subcommand is None:
             embed = discord.Embed(title='DOCS 명령어', colour=discord.Color.gold())
             embed.add_field(name='DOCS 업데이트', value='문서를 업데이트합니다. (소요시간: 1 ~ 2분)', inline=False)
@@ -116,6 +119,12 @@ class DOCS(commands.Cog):
         org = g.get_organization("discordpy-ko")
         org.invite_user(user=user_got)
         await ctx.send(f"`{user_got.login}`님을 초대했어요!")
+
+    @docs.command(name="업데이트", aliases=["update", "UPDATE"])
+    async def update(self, ctx: commands.Context, msg: str = None):
+        msg = f"Updated by {ctx.author.name}" if msg is None else msg
+        await loop.run_in_executor(None, build.build_docs, msg)
+        await ctx.send(file=discord.File("build_log.txt"))
 
 
 def setup(bot):
